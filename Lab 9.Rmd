@@ -1,0 +1,106 @@
+---
+title: "Lab 9"
+author: "Shiyu Yang"
+date: "01/04/2021"
+output: html_document
+---
+
+## Neural networks (seeds data)
+
+seeds data set from UCI repository1
+
+Explore the data.
+
+Measurements of geometrical properties of kernels belonging to three different varieties of wheat. A soft X-ray technique and GRAINS package were used to construct all seven, real-valued attributes.
+
+```{r}
+library(tidyverse)
+seeds <- read.table(
+  "https://archive.ics.uci.edu/ml/machine-learning-databases/00236/seeds_dataset.txt"
+  )
+colnames(seeds) <- c("area", 
+                     "perimeter", 
+                     "compactness", 
+                     "length_of_kernel", 
+                     "width_of_kernel",
+                     "asy_coeff", 
+                     "length_of_kernel_groove", 
+                     "Class")
+summary(seeds)
+cor(dplyr::select(seeds, -Class))
+
+```
+
+Print tidy seeds data set.
+```{r}
+library(dplyr)
+dim(seeds)
+knitr::kable(head(seeds)) %>%
+  kable_styling(latex_options="scale_down")
+
+```
+
+We scale the predictors.
+```{r}
+x <- seeds %>%
+  dplyr::select(-Class) %>%
+  scale()
+```
+
+We split 75%/25% training/test set.
+```{r}
+set.seed(1)
+
+seeds_train_index <- seeds %>%
+  mutate(ind = 1:nrow(seeds)) %>%
+  group_by(Class) %>%
+  mutate(n = n()) %>%
+  sample_frac(size = .75, weight = n) %>%
+  ungroup() %>%
+  pull(ind)
+```
+
+We create binary output units yk,k=1,2,3 using class.ind().
+```{r}
+library(nnet)
+class_labels <- pull(seeds, Class) %>% 
+  class.ind() 
+knitr::kable(head(class_labels)) %>%
+  kable_styling(latex_options="scale_down")
+```
+
+Create predictor matrix for training/test set and output for training/test set.
+```{r}
+seeds_train <- x[seeds_train_index, ]
+train_class <- class_labels[seeds_train_index,]
+seeds_test <- x[-seeds_train_index, ] 
+test_class <- class_labels[-seeds_train_index,]
+```
+
+Let’s look at the help page for nnet().
+Let’s tune size = number of units in the hidden layer and decay = weight decay parameter.
+```{r}
+nn_seeds <- nnet(
+  x = seeds_train, 
+  y = train_class, 
+  size = 4, 
+  decay = 0, 
+  softmax = TRUE,
+  maxit=500
+  )
+
+```
+
+Compute test error for NN with size = 4 and decay = 0.
+```{r}
+nn_pred <- predict(nn_seeds, seeds_test, 
+                   type="class")
+
+tab_seeds <- table(slice(
+  seeds, 
+  -seeds_train_index) %>% pull(Class), 
+  nn_pred)
+
+1-sum(diag(tab_seeds))/sum(tab_seeds)
+```
+
